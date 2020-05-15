@@ -3,7 +3,7 @@ import functools
 import time
 from concurrent.futures import thread
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, Optional
 
 from croniter import croniter
 
@@ -30,13 +30,13 @@ class Task:
         self.func = func
         self.loop = loop
         self.executor = executor
-        self._time = None
-        self._next_timestamp = None
-        self._next_loop_timestamp = None
-        self._running_task: asyncio.TimerHandle = None
+        self._time: Optional[datetime] = None
+        self._next_timestamp: Optional[float] = None
+        self._next_loop_timestamp: Optional[float] = None
+        self._running_task: Optional[asyncio.TimerHandle] = None
 
     @property
-    def time(self):
+    def time(self) -> datetime:
         if self._time is None:
             self._time = datetime.now(timezone.utc)
         return self._time
@@ -65,12 +65,12 @@ class Task:
             )
         return self._next_loop_timestamp
 
-    async def sleep_until_task_completion(self, sleep_time: float):
+    async def sleep_until_task_completion(self, sleep_time: float) -> None:
         print(f"{time.ctime()}: Non-Block Sleeping for {sleep_time}")
         await asyncio.sleep(sleep_time)
         print(f"{time.ctime()}: Non-Block Sleeping finished for {sleep_time}")
 
-    async def complete_task_lifecycle(self):
+    async def complete_task_lifecycle(self) -> None:
         now = self.time.timestamp()
         future_timestamp = self.next_timestamp
         await self.schedule()
@@ -78,23 +78,28 @@ class Task:
             sleep_time=future_timestamp - now
         )
 
-    async def schedule(self):
+    async def schedule(self) -> None:
         future_loop_timestamp: float = self.next_loop_timestamp
         print(f"{time.ctime()}: Task scheduled")
         self.loop.call_at(future_loop_timestamp, self.run)
 
-    def run(self):
+    def run(self) -> None:
         print(f"{time.ctime()}: Scheduling task in Thread")
         self.loop.run_in_executor(self.executor, self.func)
 
 
-async def handle_cronjob(pattern, func, loop, executor):
+async def handle_cronjob(
+    pattern: str,
+    func: Callable,
+    loop: asyncio.AbstractEventLoop,
+    executor: thread.ThreadPoolExecutor,
+):
     while True:
         task = Task(pattern=pattern, func=func, loop=loop, executor=executor)
         await task.complete_task_lifecycle()
 
 
-def func(id):
+def func(id: int) -> None:
     print(f"{time.ctime()}:[Task: {id}] Block Sleeping for 300 secs")
     time.sleep(300)
     print(
