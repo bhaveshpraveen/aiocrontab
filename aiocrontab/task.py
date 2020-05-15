@@ -3,23 +3,29 @@ import functools
 import time
 from concurrent.futures import thread
 from datetime import datetime, timezone
-import random
-from typing import Callable, Union, Optional
+from typing import Callable
 
 from croniter import croniter
-
 
 
 def crontab(pattern: str):
     def wrapper(func: Callable):
         def inner_wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+
         return inner_wrapper
+
     return wrapper
 
 
 class Task:
-    def __init__(self, pattern: str, func: Callable, loop: asyncio.AbstractEventLoop, executor: thread.ThreadPoolExecutor) -> None:
+    def __init__(
+        self,
+        pattern: str,
+        func: Callable,
+        loop: asyncio.AbstractEventLoop,
+        executor: thread.ThreadPoolExecutor,
+    ) -> None:
         self.pattern = pattern
         self.func = func
         self.loop = loop
@@ -34,7 +40,6 @@ class Task:
         if self._time is None:
             self._time = datetime.now(timezone.utc)
         return self._time
-
 
     @property
     def next_timestamp(self) -> float:
@@ -55,7 +60,9 @@ class Task:
         if self._next_loop_timestamp is None:
             now_timestamp = self.time.timestamp()
             future_timestamp = self.next_timestamp
-            self._next_loop_timestamp = self.loop.time() + (now_timestamp - future_timestamp)
+            self._next_loop_timestamp = self.loop.time() + (
+                now_timestamp - future_timestamp
+            )
         return self._next_loop_timestamp
 
     async def sleep_until_task_completion(self, sleep_time: float):
@@ -67,7 +74,9 @@ class Task:
         now = self.time.timestamp()
         future_timestamp = self.next_timestamp
         await self.schedule()
-        await self.sleep_until_task_completion(sleep_time=future_timestamp - now)
+        await self.sleep_until_task_completion(
+            sleep_time=future_timestamp - now
+        )
 
     async def schedule(self):
         future_loop_timestamp: float = self.next_loop_timestamp
@@ -88,7 +97,9 @@ async def handle_cronjob(pattern, func, loop, executor):
 def func(id):
     print(f"{time.ctime()}:[Task: {id}] Block Sleeping for 300 secs")
     time.sleep(300)
-    print(f"{time.ctime()}: [Task: {id}] Block Sleeping Finished for 300 secs.")
+    print(
+        f"{time.ctime()}: [Task: {id}] Block Sleeping Finished for 300 secs."
+    )
 
 
 def main():

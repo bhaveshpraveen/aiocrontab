@@ -1,11 +1,16 @@
 from datetime import datetime
 
-from aiocrontab.task import Task
 import aiocrontab.task
+from aiocrontab.task import Task
 
 
 def test_time_functions_properly(mocker):
-    task = Task(pattern="", func=mocker.Mock(), loop=mocker.Mock(), executor=mocker.Mock())
+    task = Task(
+        pattern="",
+        func=mocker.Mock(),
+        loop=mocker.Mock(),
+        executor=mocker.Mock(),
+    )
     assert task._time is None
 
     # time is now set
@@ -20,7 +25,12 @@ def test_time_functions_properly(mocker):
 
 
 def test_next_timestamp(mocker, mock_croniter):
-    task = Task(pattern="", func=mocker.Mock(), loop=mocker.Mock(), executor=mocker.Mock())
+    task = Task(
+        pattern="",
+        func=mocker.Mock(),
+        loop=mocker.Mock(),
+        executor=mocker.Mock(),
+    )
 
     mocker.patch("aiocrontab.task.croniter", mock_croniter)
     assert task._next_timestamp is None
@@ -37,11 +47,18 @@ def test_next_timestamp(mocker, mock_croniter):
 
     t1 = task.time
     aiocrontab.task.croniter.assert_called_once_with("", t1)
-    aiocrontab.task.croniter.return_value.get_next.assert_called_once_with(ret_type=float)
+    aiocrontab.task.croniter.return_value.get_next.assert_called_once_with(
+        ret_type=float
+    )
 
 
 def test_next_loop_timestamp(mocker):
-    task = Task(pattern="", func=mocker.Mock(), loop=mocker.Mock(time=mocker.Mock(return_value=1.0)), executor=mocker.Mock())
+    task = Task(
+        pattern="",
+        func=mocker.Mock(),
+        loop=mocker.Mock(time=mocker.Mock(return_value=1.0)),
+        executor=mocker.Mock(),
+    )
 
     task._time = mocker.Mock(timestamp=mocker.Mock(return_value=0.0))
     task._next_timestamp = 0.0
@@ -62,7 +79,7 @@ def test_next_loop_timestamp(mocker):
     assert task.loop.time.call_count == 1
 
 
-
-
-
-
+def test_sleep_until_task_completion(event_loop, mocker):
+    Task(
+        pattern="", func=mocker.Mock(), loop=event_loop, executor=mocker.Mock()
+    )
