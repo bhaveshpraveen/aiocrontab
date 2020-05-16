@@ -44,9 +44,9 @@ class Task:
     @property
     def next_timestamp(self) -> float:
         if self._next_timestamp is None:
-            now = self.time
+            now: float = self.time
             iter = croniter(self.pattern, now)
-            future_timestamp = iter.get_next(ret_type=float)
+            future_timestamp: float = iter.get_next(ret_type=float)
             self._next_timestamp = future_timestamp
 
         return self._next_timestamp
@@ -71,8 +71,8 @@ class Task:
         print(f"{time.ctime()}: Non-Block Sleeping finished for {sleep_time}")
 
     async def complete_task_lifecycle(self) -> None:
-        now = self.time.timestamp()
-        future_timestamp = self.next_timestamp
+        now: float = self.time.timestamp()
+        future_timestamp: float = self.next_timestamp
         await self.schedule()
         await self.sleep_until_task_completion(
             sleep_time=future_timestamp - now
