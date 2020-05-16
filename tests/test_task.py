@@ -1,12 +1,13 @@
 from datetime import datetime
 
 import aiocrontab.task
+import pytest
 from aiocrontab.task import Task
 
 
 def test_time_functions_properly(mocker):
     task = Task(
-        pattern="",
+        pattern="* * * * *",
         func=mocker.Mock(),
         loop=mocker.Mock(),
         executor=mocker.Mock(),
@@ -26,7 +27,7 @@ def test_time_functions_properly(mocker):
 
 def test_next_timestamp(mocker, mock_croniter):
     task = Task(
-        pattern="",
+        pattern="* * * * *",
         func=mocker.Mock(),
         loop=mocker.Mock(),
         executor=mocker.Mock(),
@@ -46,7 +47,7 @@ def test_next_timestamp(mocker, mock_croniter):
     assert timestamp_now == timestamp_latest
 
     t1 = task.time
-    aiocrontab.task.croniter.assert_called_once_with("", t1)
+    aiocrontab.task.croniter.assert_called_once_with("* * * * *", t1)
     aiocrontab.task.croniter.return_value.get_next.assert_called_once_with(
         ret_type=float
     )
@@ -54,7 +55,7 @@ def test_next_timestamp(mocker, mock_croniter):
 
 def test_next_loop_timestamp(mocker):
     task = Task(
-        pattern="",
+        pattern="* * * * *",
         func=mocker.Mock(),
         loop=mocker.Mock(time=mocker.Mock(return_value=1.0)),
         executor=mocker.Mock(),
@@ -79,7 +80,99 @@ def test_next_loop_timestamp(mocker):
     assert task.loop.time.call_count == 1
 
 
-def test_sleep_until_task_completion(event_loop, mocker):
-    Task(
-        pattern="", func=mocker.Mock(), loop=event_loop, executor=mocker.Mock()
+@pytest.mark.asyncio
+async def test_sleep_until_task_completion(
+    event_loop, mocker, create_mock_coro
+):
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=event_loop,
+        executor=mocker.Mock(),
     )
+    mock, coro = create_mock_coro("aiocrontab.task.asyncio.sleep")
+    await task.sleep_until_task_completion(sleep_time=10.0)
+
+    mock.assert_called_once_with(10.0)
+
+
+@pytest.mark.asyncio
+async def test_complete_task_lifecycle(event_loop, mocker, create_mock_coro):
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=event_loop,
+        executor=mocker.Mock(),
+    )
+    task._time = mocker.Mock(timestamp=mocker.Mock(return_value=0.0))
+    task._next_timestamp = 5.0
+
+    mock_schedule, task.schedule = create_mock_coro()
+    (
+        mock_sleep_until_task_completion,
+        task.sleep_until_task_completion,
+    ) = create_mock_coro()
+
+    await task.complete_task_lifecycle()
+
+    mock_schedule.assert_called_once_with()
+    sleep_time = task._next_timestamp - task._time.timestamp()
+    mock_sleep_until_task_completion.assert_called_once_with(
+        sleep_time=sleep_time
+    )
+
+
+@pytest.mark.asyncio
+async def test_schedule(mocker):
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=mocker.Mock(call_at=mocker.Mock()),
+        executor=mocker.Mock(),
+    )
+    mock_run = mocker.Mock()
+    task.run = mock_run
+    task._next_loop_timestamp = 0.0
+
+    await task.schedule()
+
+    task.loop.call_at.assert_called_once_with(0.0, mock_run)
+
+
+def test_run(mocker):
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=mocker.Mock(run_in_executor=mocker.Mock()),
+        executor=mocker.Mock(),
+    )
+    task.run()
+
+    task.loop.run_in_executor.assert_called_once_with(task.executor, task.func)
+
+
+@pytest.mark.asyncio
+async def test_handle_cronjob(mocker, create_mock_coro):
+    _, mock_coro = create_mock_coro()
+    mock_complete_task_lifecycle = mocker.Mock()
+    mock_complete_task_lifecycle.side_effect = [
+        mock_coro(),
+        Exception("Something went wrong."),
+    ]
+    mock_task_class = mocker.Mock(
+        return_value=mocker.Mock(
+            complete_task_lifecycle=mock_complete_task_lifecycle
+        )
+    )
+    mocker.patch("aiocrontab.task.Task", mock_task_class)
+
+    mock_func = mocker.Mock()
+    # aiocrontab.task.handle_cronjob("* * * * *", mock_func, loop=mocker.Mock(), executor=mocker.Mock())
+
+    with pytest.raises(Exception, match="Something went wrong."):
+        await aiocrontab.task.handle_cronjob(
+            "* * * * *", mock_func, loop=mocker.Mock(), executor=mocker.Mock()
+        )
+
+    assert mock_complete_task_lifecycle.call_count == 2
+    assert mock_task_class.call_count == 2
