@@ -61,8 +61,8 @@ def test_next_loop_timestamp(mocker):
         executor=mocker.Mock(),
     )
 
-    task._time = mocker.Mock(timestamp=mocker.Mock(return_value=0.0))
-    task._next_timestamp = 0.0
+    task._time = mocker.Mock(timestamp=mocker.Mock(return_value=5.0))
+    task._next_timestamp = 10.0
 
     # next_loop_timstamp is not set
     assert task._next_loop_timestamp is None
@@ -70,13 +70,13 @@ def test_next_loop_timestamp(mocker):
     # next_loop_timestamp is set
     next_loop_timestamp_now = task.next_loop_timestamp
     assert isinstance(next_loop_timestamp_now, float)
-    assert next_loop_timestamp_now == 1.0
+    assert next_loop_timestamp_now == 1.0 + (10.0 - 5.0)
     assert task.loop.time.call_count == 1
 
     # next_loop_timestamp is the same on subsequent calls
     next_loop_timestamp_latest = task.next_loop_timestamp
-    assert next_loop_timestamp_now == 1.0
-    assert next_loop_timestamp_latest == 1.0
+    assert next_loop_timestamp_now == 1.0 + (10.0 - 5.0)
+    assert next_loop_timestamp_latest == 1.0 + (10.0 - 5.0)
     assert task.loop.time.call_count == 1
 
 
