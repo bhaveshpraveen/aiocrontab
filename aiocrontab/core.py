@@ -5,7 +5,7 @@ import signal
 import time
 from concurrent.futures import thread
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, List, NewType, Optional, TypedDict
 
 from croniter import croniter
 
@@ -25,6 +25,15 @@ def crontab(pattern: str):
         return inner_wrapper
 
     return wrapper
+
+
+# Types
+class TRegisteredTask(TypedDict):
+    pattern: str
+    func: Callable
+
+
+TSignal = NewType("TSignal", int)
 
 
 class Task:
