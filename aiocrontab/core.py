@@ -1,11 +1,20 @@
 import asyncio
 import functools
+import logging
+import signal
 import time
 from concurrent.futures import thread
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from croniter import croniter
+
+# logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 
 def crontab(pattern: str):
@@ -66,9 +75,9 @@ class Task:
         return self._next_loop_timestamp
 
     async def sleep_until_task_completion(self, sleep_time: float) -> None:
-        print(f"{time.ctime()}: Non-Block Sleeping for {sleep_time}")
+        logging.info(f"Non-Block Sleeping for {sleep_time}")
         await asyncio.sleep(sleep_time)
-        print(f"{time.ctime()}: Non-Block Sleeping finished for {sleep_time}")
+        logging.info(f"Non-Block Sleeping finished for {sleep_time}")
 
     async def complete_task_lifecycle(self) -> None:
         now: float = self.time.timestamp()
@@ -80,11 +89,13 @@ class Task:
 
     async def schedule(self) -> None:
         future_loop_timestamp: float = self.next_loop_timestamp
-        print(f"{time.ctime()}: Task scheduled")
+        logging.info(
+            f"Task scheduled to be called at {self.next_loop_timestamp}"
+        )
         self.loop.call_at(future_loop_timestamp, self.run)
 
     def run(self) -> None:
-        print(f"{time.ctime()}: Scheduling task in Thread")
+        logging.info(f"Scheduling task in Thread")
         self.loop.run_in_executor(self.executor, self.func)
 
 
