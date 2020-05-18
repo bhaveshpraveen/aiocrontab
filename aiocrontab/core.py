@@ -222,20 +222,31 @@ class Crontab:
 
 
 def main():
-    loop = asyncio.get_event_loop()
-    executor = thread.ThreadPoolExecutor()
-
+    # loop = asyncio.get_event_loop()
+    # executor = thread.ThreadPoolExecutor()
+    #
     f1 = functools.partial(func, 1)
     f2 = functools.partial(func, 2)
+    f3 = functools.partial(func, 3)
+    #
+    # loop.create_task(handle_cronjob("* * * * *", f1, loop, executor))
+    # loop.create_task(handle_cronjob("*/2 * * * *", f2, loop, executor))
+    #
+    # loop.run_forever()
+    #
+    # print(f"{time.ctime()}: Completed running.")
+    #
+    # executor.shutdown(wait=True)
 
-    loop.create_task(handle_cronjob("* * * * *", f1, loop, executor))
-    loop.create_task(handle_cronjob("*/2 * * * *", f2, loop, executor))
+    import aiocrontab
 
-    loop.run_forever()
+    aiocrontab.register("*/3 * * * *")(f1)
+    aiocrontab.register("*/5 * * * *")(f2)
+    aiocrontab.run()
 
-    print(f"{time.ctime()}: Completed running.")
-
-    executor.shutdown(wait=True)
+    cron = Crontab()
+    cron.register("* * * * *")(f3)
+    cron.run()
 
 
 if __name__ == "__main__":
