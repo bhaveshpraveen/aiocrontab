@@ -1,8 +1,8 @@
 from datetime import datetime
 
-import aiocrontab.task
+import aiocrontab.core
 import pytest
-from aiocrontab.task import Task
+from aiocrontab.core import Task
 
 
 def test_time_functions_properly(mocker):
@@ -33,7 +33,7 @@ def test_next_timestamp(mocker, mock_croniter):
         executor=mocker.Mock(),
     )
 
-    mocker.patch("aiocrontab.task.croniter", mock_croniter)
+    mocker.patch("aiocrontab.core.croniter", mock_croniter)
     assert task._next_timestamp is None
 
     # next_timestamp is now set
@@ -47,8 +47,8 @@ def test_next_timestamp(mocker, mock_croniter):
     assert timestamp_now == timestamp_latest
 
     t1 = task.time
-    aiocrontab.task.croniter.assert_called_once_with("* * * * *", t1)
-    aiocrontab.task.croniter.return_value.get_next.assert_called_once_with(
+    aiocrontab.core.croniter.assert_called_once_with("* * * * *", t1)
+    aiocrontab.core.croniter.return_value.get_next.assert_called_once_with(
         ret_type=float
     )
 
@@ -90,7 +90,7 @@ async def test_sleep_until_task_completion(
         loop=event_loop,
         executor=mocker.Mock(),
     )
-    mock, coro = create_mock_coro("aiocrontab.task.asyncio.sleep")
+    mock, coro = create_mock_coro("aiocrontab.core.asyncio.sleep")
     await task.sleep_until_task_completion(sleep_time=10.0)
 
     mock.assert_called_once_with(10.0)
@@ -164,13 +164,13 @@ async def test_handle_cronjob(mocker, create_mock_coro):
             complete_task_lifecycle=mock_complete_task_lifecycle
         )
     )
-    mocker.patch("aiocrontab.task.Task", mock_task_class)
+    mocker.patch("aiocrontab.core.Task", mock_task_class)
 
     mock_func = mocker.Mock()
-    # aiocrontab.task.handle_cronjob("* * * * *", mock_func, loop=mocker.Mock(), executor=mocker.Mock())
+    # aiocrontab.core.handle_cronjob("* * * * *", mock_func, loop=mocker.Mock(), executor=mocker.Mock())
 
     with pytest.raises(Exception, match="Something went wrong."):
-        await aiocrontab.task.handle_cronjob(
+        await aiocrontab.core.handle_cronjob(
             "* * * * *", mock_func, loop=mocker.Mock(), executor=mocker.Mock()
         )
 
