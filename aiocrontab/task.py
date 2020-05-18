@@ -44,7 +44,7 @@ class Task:
     @property
     def next_timestamp(self) -> float:
         if self._next_timestamp is None:
-            now: float = self.time
+            now: datetime = self.time
             iter = croniter(self.pattern, now)
             future_timestamp: float = iter.get_next(ret_type=float)
             self._next_timestamp = future_timestamp
