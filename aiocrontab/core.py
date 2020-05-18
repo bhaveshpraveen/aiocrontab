@@ -17,16 +17,6 @@ logging.basicConfig(
 )
 
 
-def crontab(pattern: str):
-    def wrapper(func: Callable):
-        def inner_wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return inner_wrapper
-
-    return wrapper
-
-
 # Types
 class TRegisteredTask(TypedDict):
     pattern: str
@@ -79,7 +69,7 @@ class Task:
             now_timestamp = self.time.timestamp()
             future_timestamp = self.next_timestamp
             self._next_loop_timestamp = self.loop.time() + (
-                now_timestamp - future_timestamp
+                future_timestamp - now_timestamp
             )
         return self._next_loop_timestamp
 
