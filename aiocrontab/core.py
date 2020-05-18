@@ -133,6 +133,10 @@ class Crontab:
             error_signals_to_intercept or _DEFAULT_ERROR_SIGNALS
         )
 
+    def initialize_event_loop(self) -> None:
+        self.loop.set_exception_handler(self.handle_exception)
+        self.handle_error_signals(self.loop)
+
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
