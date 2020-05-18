@@ -126,7 +126,7 @@ class Crontab:
         executor: Optional[thread.ThreadPoolExecutor] = None,
         error_signals_to_intercept: Optional[List[TSignal]] = None,
     ):
-        self.registered_tasks = []
+        self.registered_tasks: List[TRegisteredTask] = []
         self._loop = loop
         self._executor = executor
         self.error_signals_to_intercept = (
@@ -134,31 +134,31 @@ class Crontab:
         )
 
     @property
-    def loop(self):
+    def loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
-            self._loop.set_exception_handler(self.handle_exception)
-        elif self._loop.is_closed():
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-            self._loop.set_exception_handler(self.handle_exception)
+            self.initialize_event_loop()
+        # elif self._loop.is_closed():
+        #     self._loop = asyncio.new_event_loop()
+        #     asyncio.set_event_loop(self._loop)
+        #     self.initialize_event_loop()
         return self._loop
 
     @property
-    def executor(self):
+    def executor(self) -> thread.ThreadPoolExecutor:
         if self._executor is None:
             self._executor = thread.ThreadPoolExecutor()
         return self._executor
 
-    def register(self, pattern: str):
-        def decorator(f: Callable):
+    def register(self, pattern: str) -> Callable:
+        def decorator(f: Callable) -> Callable:
             task_to_register = TRegisteredTask(pattern=pattern, func=f)
             self.registered_tasks.append(task_to_register)
             return f
 
         return decorator
 
-    async def shutdown(self, signal: Optional[TSignal] = None):
+    async def shutdown(self, signal: Optional[TSignal] = None) -> None:
         if signal:
             logging.info("Received exit signal %s", signal)
         tasks = [
@@ -179,14 +179,16 @@ class Crontab:
         self,
         loop: asyncio.AbstractEventLoop,
         error_signals: Optional[List[TSignal]] = None,
-    ):
+    ) -> None:
         error_signals_to_handle = error_signals or _DEFAULT_ERROR_SIGNALS
         for _signal in error_signals_to_handle:
             loop.add_signal_handler(
                 _signal, lambda s=_signal: loop.create_task(self.shutdown(s))
             )
 
-    def handle_exception(self, loop, context: Dict[str, Any]) -> None:
+    def handle_exception(
+        self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]
+    ) -> None:
         """Set handler as the new event loop exception handler.
         :param loop: Event loop
         :param context: Contains the details of the exception. Details about the context dict: https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.call_exception_handler
@@ -194,10 +196,10 @@ class Crontab:
         """
         msg = context.get("exception", context["message"])
         logging.error("%s", msg)
-        logging.info("Shutting down..")
-        loop.create_task(self.shutdown())
+        # logging.info("Shutting down..")
+        # loop.create_task(self.shutdown())
 
-    def run(self):
+    def run(self) -> None:
         try:
             for registered_task in self.registered_tasks:
                 pattern, func = (
