@@ -99,9 +99,9 @@ async def handle_cronjob(
 
 
 def func(id: int) -> None:
-    logging.info(f"[Task: {id}] Block Sleeping for 300 secs")
-    time.sleep(300)
-    logging.info(f"[Task: {id}] Block Sleeping Finished for 300 secs.")
+    logging.info(f"[Task: {id}] Block Sleeping for 15 secs")
+    time.sleep(15)
+    logging.info(f"[Task: {id}] Block Sleeping Finished for 15 secs.")
 
 
 # specifies the default error signals to handle/intercept for graceful shutdown
@@ -235,13 +235,14 @@ def main():
 
     import aiocrontab
 
-    aiocrontab.register("*/3 * * * *")(f1)
-    aiocrontab.register("*/5 * * * *")(f2)
+    aiocrontab.register("* * * * *")(f1)
+    aiocrontab.register("* * * * *")(f2)
+    aiocrontab.register("* * * * *")(f3)
     aiocrontab.run()
 
-    cron = Crontab()
-    cron.register("* * * * *")(f3)
-    cron.run()
+    # cron = Crontab()
+    # cron.register("* * * * *")(f3)
+    # cron.run()
 
 
 if __name__ == "__main__":
