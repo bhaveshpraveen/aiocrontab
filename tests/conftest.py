@@ -1,6 +1,9 @@
 import logging
 
+from datetime import datetime
+
 import pytest
+
 from aiocrontab import Crontab
 from aiocrontab.core import Task
 
@@ -62,11 +65,18 @@ def mock_crontab_with_tasks(mocker, crontab):
         cron = crontab(*args, **kwargs)
 
         mocker.patch(
-            "aiocrontab.core.Task.time",
-            mocker.Mock(timestamp=mocker.Mock(return_value=0.01)),
+            "aiocrontab.core.Task.get_now",
+            mocker.Mock(return_value=datetime(2020, 5, 5, 0, 0, 0)),
         )
-        mocker.patch("aiocrontab.core.Task.next_timestamp", 0.05)
-        mocker.patch("aiocrontab.core.Task.next_loop_timestamp", 0.03)
+        mocker.patch(
+            "aiocrontab.core.Task.get_next",
+            mocker.Mock(
+                return_value=(
+                    datetime(2020, 5, 5, 0, 0, 0, 30),
+                    datetime(2020, 5, 5, 0, 0, 0, 0),
+                )
+            ),
+        )
 
         f_returns = [
             None,
@@ -83,13 +93,43 @@ def mock_crontab_with_tasks(mocker, crontab):
             async def mock_handle_cronjob(*args, **kwargs):
                 for i in range(len(f_returns)):
                     task = Task(*args, **kwargs)
+                    # important: reduce the buffer time for testing
+                    task.buffer_time = 0.1
                     await task.complete_task_lifecycle()
 
                 await cron.shutdown()
 
-            mocker.patch("aiocrontab.core.handle_cronjob", mock_handle_cronjob)
+        else:
+
+            async def mock_handle_cronjob(*args, **kwargs):
+                while True:
+                    task = Task(*args, **kwargs)
+                    # important: reduce the buffer time for testing
+                    task.buffer_time = 0.1
+                    await task.complete_task_lifecycle()
+
+        mocker.patch("aiocrontab.core.handle_cronjob", mock_handle_cronjob)
 
         cron.register("* * * * *")(f1)
         return cron, f1
 
     return _crontab
+
+
+@pytest.fixture
+def create_mock_handle_cronjob(mocker):
+    def dec(to_patch=None):
+        async def _mock_handle_cronjob(pattern, func, loop, executor):
+            while True:
+                task = Task(pattern, func=func, loop=loop, executor=executor)
+                task.buffer_time = 0.1
+                await task.complete_task_lifecycle()
+
+        mock = mocker.Mock(wraps=_mock_handle_cronjob)
+
+        if to_patch:
+            mocker.patch(to_patch, mock)
+
+        return mock
+
+    return dec
