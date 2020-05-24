@@ -1,28 +1,47 @@
 from datetime import datetime
 
-import aiocrontab.core
 import pytest
+
+import aiocrontab.core
+
 from aiocrontab.core import Task
 
 
-def test_time_functions_properly(mocker):
+@pytest.mark.parametrize(
+    "now,pattern,expected",
+    [
+        (
+            datetime(2020, 5, 5, 0, 0, 0),
+            "* * * * *",
+            datetime(2020, 5, 5, 0, 1, 0),
+        ),
+        (
+            datetime(2020, 5, 5, 0, 0, 0),
+            "*/5 * * * *",
+            datetime(2020, 5, 5, 0, 5, 0),
+        ),
+        (
+            datetime(2020, 5, 5, 0, 0, 0),
+            "55 11 6 5 *",
+            datetime(2020, 5, 6, 11, 55, 0),
+        ),
+    ],
+)
+def test_get_next_returns_task_datetime_and_current_datetime(
+    now, pattern, expected, mocker
+):
     task = Task(
-        pattern="* * * * *",
+        pattern=pattern,
         func=mocker.Mock(),
         loop=mocker.Mock(),
         executor=mocker.Mock(),
     )
-    assert task._time is None
+    task.get_now = mocker.Mock(return_value=now)
 
-    # time is now set
-    now = task.time
-    assert task._time == now
-    assert isinstance(now, datetime)
+    task_datetime, _now = task.get_next()
 
-    # the time is the same on subsequent calls when it was first set
-    second_call = task.time
-    assert now == second_call
-    assert task._time == now
+    assert _now == now
+    assert task_datetime == expected
 
 
 def test_next_timestamp(mocker, mock_croniter):

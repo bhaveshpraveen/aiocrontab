@@ -57,8 +57,11 @@ class Task:
         self._running_task: Optional[asyncio.TimerHandle] = None
         self.tz = timezone.utc
 
+    def get_now(self):
+        return datetime.now(self.tz)
+
     def get_next(self) -> Tuple[datetime, datetime]:
-        now: datetime = datetime.now(self.tz)
+        now: datetime = self.get_now()
         iter = croniter(self.pattern, now)
         task_datetime: datetime = iter.get_next(datetime)
         return task_datetime, now
