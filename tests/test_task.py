@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from datetime import datetime
 
 import pytest
@@ -44,130 +47,169 @@ def test_get_next_returns_task_datetime_and_current_datetime(
     assert task_datetime == expected
 
 
-def test_next_timestamp(mocker, mock_croniter):
+def test_get_now_returns_timezone_aware_datetime(mocker):
     task = Task(
         pattern="* * * * *",
         func=mocker.Mock(),
         loop=mocker.Mock(),
         executor=mocker.Mock(),
     )
-
-    mocker.patch("aiocrontab.core.croniter", mock_croniter)
-    assert task._next_timestamp is None
-
-    # next_timestamp is now set
-    timestamp_now = task.next_timestamp
-    assert timestamp_now == 500.00
-    assert isinstance(timestamp_now, float)
-
-    # next_timestamp is the same on subsequent calls
-    timestamp_latest = task.next_timestamp
-    assert isinstance(timestamp_latest, float)
-    assert timestamp_now == timestamp_latest
-
-    t1 = task.time
-    aiocrontab.core.croniter.assert_called_once_with("* * * * *", t1)
-    aiocrontab.core.croniter.return_value.get_next.assert_called_once_with(
-        ret_type=float
-    )
+    d = task.get_now()
+    # how to check if the dt is timezone aware:
+    # https://stackoverflow.com/questions/5802108/how-to-check-if-a-datetime-object-is-localized-with-pytz
+    assert d.tzinfo is not None and d.tzinfo.utcoffset(d) is not None
 
 
-def test_next_loop_timestamp(mocker):
-    task = Task(
-        pattern="* * * * *",
-        func=mocker.Mock(),
-        loop=mocker.Mock(time=mocker.Mock(return_value=1.0)),
-        executor=mocker.Mock(),
-    )
-
-    task._time = mocker.Mock(timestamp=mocker.Mock(return_value=5.0))
-    task._next_timestamp = 10.0
-
-    # next_loop_timstamp is not set
-    assert task._next_loop_timestamp is None
-
-    # next_loop_timestamp is set
-    next_loop_timestamp_now = task.next_loop_timestamp
-    assert isinstance(next_loop_timestamp_now, float)
-    assert next_loop_timestamp_now == 1.0 + (10.0 - 5.0)
-    assert task.loop.time.call_count == 1
-
-    # next_loop_timestamp is the same on subsequent calls
-    next_loop_timestamp_latest = task.next_loop_timestamp
-    assert next_loop_timestamp_now == 1.0 + (10.0 - 5.0)
-    assert next_loop_timestamp_latest == 1.0 + (10.0 - 5.0)
-    assert task.loop.time.call_count == 1
-
-
+@pytest.mark.parametrize(
+    "now,dt,timestamp",
+    [
+        (datetime(2020, 5, 5, 0, 0, 0), datetime(2020, 5, 5, 0, 1, 0), 60.0),
+        (
+            datetime(2020, 5, 5, 0, 0, 0),
+            datetime(2020, 5, 6, 12, 12, 12),
+            130332.0,
+        ),
+    ],
+)
 @pytest.mark.asyncio
 async def test_sleep_until_task_completion(
-    event_loop, mocker, create_mock_coro
+    now, dt, timestamp, event_loop, mocker, create_mock_coro, create_caplog
+):
+    caplog = create_caplog(logging.INFO)
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=event_loop,
+        executor=mocker.Mock(),
+    )
+    task.get_now = mocker.Mock(return_value=now)
+    mock, coro = create_mock_coro("aiocrontab.core.asyncio.sleep")
+    await task.sleep_until_task_completion(till=dt)
+
+    mock.assert_called_once_with(timestamp + task.buffer_time)
+    assert 2 == len(caplog.records)
+
+
+@pytest.mark.parametrize(
+    "pattern,now,dt",
+    [
+        (
+            "* * * * *",
+            datetime(2020, 5, 5, 0, 0, 0),
+            datetime(2020, 5, 5, 0, 1, 0),
+        ),
+        (
+            "3 1-4 * * *",
+            datetime(2020, 5, 5, 0, 0),
+            datetime(2020, 5, 5, 1, 2, 0),
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_scheduled_time_is_less_than_sleep_time(
+    pattern, now, dt, mocker, event_loop, create_mock_coro
 ):
     task = Task(
-        pattern="* * * * *",
+        pattern=pattern,
         func=mocker.Mock(),
         loop=event_loop,
         executor=mocker.Mock(),
     )
-    mock, coro = create_mock_coro("aiocrontab.core.asyncio.sleep")
-    await task.sleep_until_task_completion(sleep_time=10.0)
+    # mocks
+    task.get_now = mocker.Mock(return_value=now)
+    task.get_next = mocker.Mock(return_value=(dt, now))
+    task.loop.call_at = mocker.Mock()
+    task.loop.time = mocker.Mock(return_value=0.0)
+    mock_sleep, _ = create_mock_coro("aiocrontab.core.asyncio.sleep")
 
-    mock.assert_called_once_with(10.0)
-
-
-@pytest.mark.asyncio
-async def test_complete_task_lifecycle(event_loop, mocker, create_mock_coro):
-    task = Task(
-        pattern="* * * * *",
-        func=mocker.Mock(),
-        loop=event_loop,
-        executor=mocker.Mock(),
-    )
-    task._time = mocker.Mock(timestamp=mocker.Mock(return_value=0.0))
-    task._next_timestamp = 5.0
-
-    mock_schedule, task.schedule = create_mock_coro()
-    (
-        mock_sleep_until_task_completion,
-        task.sleep_until_task_completion,
-    ) = create_mock_coro()
-
+    # run
     await task.complete_task_lifecycle()
 
-    mock_schedule.assert_called_once_with()
-    sleep_time = task._next_timestamp - task._time.timestamp()
-    mock_sleep_until_task_completion.assert_called_once_with(
-        sleep_time=sleep_time
+    # asserts
+    assert mock_sleep.call_args.args[0] > task.loop.call_at.call_args.args[0]
+    assert (
+        mock_sleep.call_args.args[0] - task.loop.call_at.call_args.args[0]
+        == task.buffer_time
     )
 
 
-@pytest.mark.asyncio
-async def test_schedule(mocker):
-    task = Task(
-        pattern="* * * * *",
-        func=mocker.Mock(),
-        loop=mocker.Mock(call_at=mocker.Mock()),
-        executor=mocker.Mock(),
-    )
-    mock_run = mocker.Mock()
-    task.run = mock_run
-    task._next_loop_timestamp = 0.0
-
-    await task.schedule()
-
-    task.loop.call_at.assert_called_once_with(0.0, mock_run)
-
-
-def test_run(mocker):
+@pytest.mark.parametrize(
+    "at,now,loop_time,expected",
+    [
+        (
+            datetime(2020, 5, 5, 0, 2, 0),
+            datetime(2020, 5, 5, 0, 0, 0),
+            30.0,
+            150.0,
+        ),
+        (
+            datetime(2020, 5, 7, 13, 12, 0),
+            datetime(2020, 5, 5, 0, 0, 0),
+            23.0,
+            220343.0,
+        ),
+        (
+            datetime(2020, 6, 1, 0, 3, 4),
+            datetime(2020, 5, 5, 0, 0, 0),
+            139.0,
+            2333123.0,
+        ),
+    ],
+)
+def test_schedule_next_loop_timestamp_is_calculated_correctly(
+    at, now, expected, loop_time, mocker
+):
     task = Task(
         pattern="* * * * *",
         func=mocker.Mock(),
         loop=mocker.Mock(run_in_executor=mocker.Mock()),
         executor=mocker.Mock(),
     )
+
+    # mock
+    task.loop.time = mocker.Mock(return_value=loop_time)
+    task.loop.call_at = mocker.Mock()
+
+    task.schedule(at, now)
+
+    # asserts
+    task.loop.call_at.assert_called_once_with(expected, task.run)
+
+
+def test_run(mocker, create_caplog):
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=mocker.Mock(run_in_executor=mocker.Mock()),
+        executor=mocker.Mock(),
+    )
+    caplog = create_caplog(logging.INFO)
     task.run()
 
+    assert len(caplog.records) == 1
     task.loop.run_in_executor.assert_called_once_with(task.executor, task.func)
+
+
+@pytest.mark.parametrize(
+    "at,now", [(datetime(2020, 5, 5, 0, 0, 1), datetime(2020, 5, 5, 0, 0, 0))]
+)
+@pytest.mark.asyncio
+async def test_run_gets_called_from_the_schedule_call(
+    at, now, mocker, event_loop
+):
+    task = Task(
+        pattern="dummy",
+        func=mocker.Mock(),
+        loop=event_loop,
+        executor=mocker.Mock(),
+    )
+    task.run = mocker.Mock()
+
+    task.schedule(at, now)
+
+    await asyncio.sleep(1.2)
+
+    task.run.assert_called_once_with()
 
 
 @pytest.mark.asyncio
