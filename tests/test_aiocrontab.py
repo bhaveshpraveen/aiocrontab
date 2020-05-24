@@ -5,8 +5,9 @@ import signal
 import threading
 import time
 
-import aiocrontab
 import pytest
+
+import aiocrontab
 
 
 @pytest.mark.skip
@@ -117,12 +118,13 @@ def test_shutdown_is_called_on_receiving_error_signals(
     asyncio.set_event_loop(event_loop)
     event_loop._close = event_loop.close
     event_loop.close = mocker.Mock()
+    mocker.patch("aiocrontab.core.logging")
 
     def _shutdown():
         mock_shutdown()
         event_loop.stop()
 
-    event_loop.add_signal_handler(tested_signal, _shutdown)
+    event_loop.add_signal_handler(signal.SIGUSR1, _shutdown)
 
     def _send_signal():
         time.sleep(0.1)
@@ -147,3 +149,14 @@ def test_shutdown_is_called_on_receiving_error_signals(
     event_loop.close.assert_called_once_with()
 
     event_loop._close()
+
+
+# @pytest.mark.skip
+# @pytest.mark.parametrize("pattern,dt,expected")
+# def test_handle_cron_job_schedules_the_task_correctly(pattern, mocker, event_loop, create_mock_handle_cronjob):
+#     mock_handle_cronjob = create_mock_handle_cronjob("aiocrontab.handle_cronjob")
+#     mock_func = mocker.Mock(return_value=None)
+#
+#     mock_handle_cronjob(pattern=pattern, func=mock_func, loop=event_loop, executor=mocker.Mock())
+#
+#     pass
