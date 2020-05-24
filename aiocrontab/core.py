@@ -3,13 +3,27 @@ import functools
 import logging
 import signal
 import time
+
 from concurrent.futures import thread
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, NewType, Optional, TypedDict
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import NewType
+from typing import Optional
+from typing import Tuple
+from typing import TypedDict
 
 from croniter import croniter
 
+
 # logger
+logging.Formatter.converter = lambda x, timestamp: datetime.now(
+    timezone.utc
+).timetuple()
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
@@ -38,60 +52,35 @@ class Task:
         self.func = func
         self.loop = loop
         self.executor = executor
-        self._time: Optional[datetime] = None
-        self._next_timestamp: Optional[float] = None
-        self._next_loop_timestamp: Optional[float] = None
+        # extra buffer time(seconds) to specify the delay between scheduled tasks.
+        self.buffer_time = 30
         self._running_task: Optional[asyncio.TimerHandle] = None
+        self.tz = timezone.utc
 
-    @property
-    def time(self) -> datetime:
-        if self._time is None:
-            self._time = datetime.now(timezone.utc)
-        return self._time
+    def get_next(self) -> Tuple[datetime, datetime]:
+        now: datetime = datetime.now(self.tz)
+        iter = croniter(self.pattern, now)
+        task_datetime: datetime = iter.get_next(datetime)
+        return task_datetime, now
 
-    @property
-    def next_timestamp(self) -> float:
-        if self._next_timestamp is None:
-            now: datetime = self.time
-            iter = croniter(self.pattern, now)
-            future_timestamp: float = iter.get_next(ret_type=float)
-            self._next_timestamp = future_timestamp
-
-        return self._next_timestamp
-
-    @property
-    def next_loop_timestamp(self) -> float:
-        """To calculate the timestamp of the next occurence of the specified cron format in context with loop.time().
-        Returns
-            float: timestamp till the occurence of the self.pattern in context with loop.time()
-        """
-        if self._next_loop_timestamp is None:
-            now_timestamp = self.time.timestamp()
-            future_timestamp = self.next_timestamp
-            self._next_loop_timestamp = self.loop.time() + (
-                future_timestamp - now_timestamp
-            )
-        return self._next_loop_timestamp
-
-    async def sleep_until_task_completion(self, sleep_time: float) -> None:
-        logging.info(f"Non-Block Sleeping for {sleep_time}")
-        await asyncio.sleep(sleep_time)
-        logging.info(f"Non-Block Sleeping finished for {sleep_time}")
+    async def sleep_until_task_completion(self, till: datetime) -> None:
+        sleep_till_dt: datetime = till + timedelta(seconds=self.buffer_time)
+        sleep_till_timestamp: float = sleep_till_dt.timestamp()
+        logging.info(f"Non-Block Sleeping for {sleep_till_timestamp}")
+        await asyncio.sleep(sleep_till_timestamp)
+        logging.info(f"Non-Block Sleeping finished for {sleep_till_timestamp}")
 
     async def complete_task_lifecycle(self) -> None:
-        now: float = self.time.timestamp()
-        future_timestamp: float = self.next_timestamp
-        await self.schedule()
-        await self.sleep_until_task_completion(
-            sleep_time=future_timestamp - now
-        )
+        next_task_datetime, now = self.get_next()
+        self.schedule(at=next_task_datetime, now=now)
+        await self.sleep_until_task_completion(till=next_task_datetime)
 
-    async def schedule(self) -> None:
-        future_loop_timestamp: float = self.next_loop_timestamp
-        logging.info(
-            f"Task scheduled to be called at {self.next_loop_timestamp}"
-        )
-        self.loop.call_at(future_loop_timestamp, self.run)
+    def schedule(self, at: datetime, now: datetime) -> None:
+        next_timestamp: float = at.timestamp()
+        now_timestamp: float = now.timestamp()
+        next_loop_timestamp: float = self.loop.time() + next_timestamp - now_timestamp
+        logging.info(f"Task scheduled to be called at {next_loop_timestamp}")
+        self.loop.call_at(next_loop_timestamp, self.run)
 
     def run(self) -> None:
         logging.info(f"Scheduling task in Thread")
