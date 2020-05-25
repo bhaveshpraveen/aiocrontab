@@ -126,9 +126,10 @@ async def test_scheduled_time_is_less_than_sleep_time(
     await task.complete_task_lifecycle()
 
     # asserts
-    assert mock_sleep.call_args.args[0] > task.loop.call_at.call_args.args[0]
+
+    assert mock_sleep.call_args[0][0] > task.loop.call_at.call_args[0][0]
     assert (
-        mock_sleep.call_args.args[0] - task.loop.call_at.call_args.args[0]
+        mock_sleep.call_args[0][0] - task.loop.call_at.call_args[0][0]
         == task.buffer_time
     )
 
