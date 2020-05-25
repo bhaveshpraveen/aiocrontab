@@ -29,4 +29,4 @@ aiocrontab.run()
 - [ ] support for async task
 - [x] take logger as dependency
 - [ ] Add more meaningful tests
-- [ ] fix mypy errors
+- [x] fix mypy errors

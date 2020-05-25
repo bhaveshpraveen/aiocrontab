@@ -124,7 +124,7 @@ def create_logger(tz=timezone.utc, debug=True):
         "%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
         "%Y-%m-%d %H:%M:%S",
     )
-    formatter.converter = timetz
+    formatter.converter = timetz  # type:ignore
 
     handler.setFormatter(formatter)
     logger.addHandler(handler)
