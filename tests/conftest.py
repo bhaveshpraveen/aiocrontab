@@ -52,7 +52,7 @@ def create_caplog(caplog):
     """Set global test logging levels."""
 
     def _level(level=logging.INFO):
-        caplog.set_level(level)
+        caplog.set_level(level, logger="aiocrontab.core")
         return caplog
 
     return _level
@@ -119,9 +119,15 @@ def mock_crontab_with_tasks(mocker, crontab):
 @pytest.fixture
 def create_mock_handle_cronjob(mocker):
     def dec(to_patch=None):
-        async def _mock_handle_cronjob(pattern, func, loop, executor):
+        async def _mock_handle_cronjob(pattern, func, loop, executor, logger):
             while True:
-                task = Task(pattern, func=func, loop=loop, executor=executor)
+                task = Task(
+                    pattern,
+                    func=func,
+                    loop=loop,
+                    executor=executor,
+                    logger=logger,
+                )
                 task.buffer_time = 0.1
                 await task.complete_task_lifecycle()
 

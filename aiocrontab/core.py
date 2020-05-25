@@ -26,17 +26,6 @@ else:
     from typing_extensions import TypedDict
 
 
-# logger
-logging.Formatter.converter = lambda x, timestamp: datetime.now(
-    timezone.utc
-).timetuple()
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
-    datefmt="%H:%M:%S",
-)
-
-
 # Types
 class TRegisteredTask(TypedDict):
     pattern: str
@@ -53,6 +42,7 @@ class Task:
         func: Callable,
         loop: asyncio.AbstractEventLoop,
         executor: thread.ThreadPoolExecutor,
+        logger: logging.Logger,
     ) -> None:
         self.pattern = pattern
         self.func = func
@@ -60,6 +50,7 @@ class Task:
         self.executor = executor
         # extra buffer time(seconds) to specify the delay between scheduled tasks.
         self.buffer_time = 30
+        self.logger = logger
         self._running_task: Optional[asyncio.TimerHandle] = None
         self.tz = timezone.utc
 
@@ -75,9 +66,11 @@ class Task:
     async def sleep_until_task_completion(self, till: datetime) -> None:
         sleep_till_dt: datetime = till + timedelta(seconds=self.buffer_time)
         sleep_till_timestamp: float = sleep_till_dt.timestamp() - self.get_now().timestamp()
-        logging.info(f"Non-Block Sleeping for {sleep_till_timestamp}")
+        self.logger.debug(f"Non-Block Sleeping for {sleep_till_timestamp}")
         await asyncio.sleep(sleep_till_timestamp)
-        logging.info(f"Non-Block Sleeping finished for {sleep_till_timestamp}")
+        self.logger.debug(
+            f"Non-Block Sleeping finished for {sleep_till_timestamp}"
+        )
 
     async def complete_task_lifecycle(self) -> None:
         next_task_datetime, now = self.get_next()
@@ -88,11 +81,13 @@ class Task:
         next_timestamp: float = at.timestamp()
         now_timestamp: float = now.timestamp()
         next_loop_timestamp: float = self.loop.time() + next_timestamp - now_timestamp
-        logging.info(f"Task scheduled to be called at {next_loop_timestamp}")
+        self.logger.info(
+            f"Task scheduled to be called at {next_loop_timestamp}"
+        )
         self.loop.call_at(next_loop_timestamp, self.run)
 
     def run(self) -> None:
-        logging.info(f"Scheduling task in Thread")
+        self.logger.info(f"Scheduling task in Thread")
         self.loop.run_in_executor(self.executor, self.func)
 
 
@@ -101,16 +96,40 @@ async def handle_cronjob(
     func: Callable,
     loop: asyncio.AbstractEventLoop,
     executor: thread.ThreadPoolExecutor,
+    logger: logging.Logger,
 ):
     while True:
-        task = Task(pattern=pattern, func=func, loop=loop, executor=executor)
+        task = Task(
+            pattern=pattern,
+            func=func,
+            loop=loop,
+            executor=executor,
+            logger=logger,
+        )
         await task.complete_task_lifecycle()
 
 
-def func(id: int) -> None:
-    logging.info(f"[Task: {id}] Block Sleeping for 15 secs")
-    time.sleep(15)
-    logging.info(f"[Task: {id}] Block Sleeping Finished for 15 secs.")
+def create_logger(tz=timezone.utc, debug=True):
+    def timetz(timestamp):
+        # for changing the timezone when logging
+        # https://stackoverflow.com/questions/32402502/how-to-change-the-time-zone-in-python-logging
+        return datetime.now(tz).timetuple()
+
+    # used this for creating a logger
+    # https://stackoverflow.com/questions/43109355/logging-setlevel-is-being-ignored
+    logger = logging.getLogger(__name__)
+
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    formatter.converter = timetz
+
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
+    return logger
 
 
 # specifies the default error signals to handle/intercept for graceful shutdown
@@ -123,6 +142,7 @@ class Crontab:
         loop: Optional[asyncio.AbstractEventLoop] = None,
         executor: Optional[thread.ThreadPoolExecutor] = None,
         error_signals_to_intercept: Optional[List[TSignal]] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self.registered_tasks: List[TRegisteredTask] = []
         self._loop = loop
@@ -130,6 +150,7 @@ class Crontab:
         self.error_signals_to_intercept = (
             error_signals_to_intercept or _DEFAULT_ERROR_SIGNALS
         )
+        self.logger = logger or create_logger()
 
     def initialize_event_loop(self) -> None:
         self.loop.set_exception_handler(self.handle_exception)
@@ -162,18 +183,18 @@ class Crontab:
 
     async def shutdown(self, signal: Optional[TSignal] = None) -> None:
         if signal:
-            logging.info("Received exit signal %s", signal)
+            self.logger.info("Received exit signal %s", signal)
         tasks = [
             t for t in asyncio.all_tasks() if t is not asyncio.current_task()
         ]
         for task in tasks:
             task.cancel()
 
-        logging.info("Cancelling tasks...")
+        self.logger.info("Cancelling tasks...")
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # waits until all the background tasks running in different threads to complete.
-        logging.info("Waiting for background threads to finish..")
+        self.logger.info("Waiting for background threads to finish..")
         self.executor.shutdown(wait=True)
         self.loop.stop()
 
@@ -197,7 +218,7 @@ class Crontab:
         :return: None
         """
         msg = context.get("exception", context["message"])
-        logging.error("%s", msg)
+        self.logger.error("%s", msg)
         # logging.info("Shutting down..")
         # loop.create_task(self.shutdown())
 
@@ -215,32 +236,26 @@ class Crontab:
                             func=func,
                             loop=self.loop,
                             executor=self.executor,
+                            logger=self.logger,
                         )
                     )
                 )
             self.loop.run_forever()
         finally:
-            logging.info("Closing the loop.")
+            self.logger.info("Closing the loop.")
             self.loop.close()
-            logging.info("Shutdown Aiocrontab successfully.")
+            self.logger.info("Shutdown Aiocrontab successfully.")
 
 
 def main():
-    # loop = asyncio.get_event_loop()
-    # executor = thread.ThreadPoolExecutor()
-    #
+    def func(id: int) -> None:
+        logging.info(f"[Task: {id}] Block Sleeping for 15 secs")
+        time.sleep(15)
+        logging.info(f"[Task: {id}] Block Sleeping Finished for 15 secs.")
+
     f1 = functools.partial(func, 1)
     f2 = functools.partial(func, 2)
     f3 = functools.partial(func, 3)
-    #
-    # loop.create_task(handle_cronjob("* * * * *", f1, loop, executor))
-    # loop.create_task(handle_cronjob("*/2 * * * *", f2, loop, executor))
-    #
-    # loop.run_forever()
-    #
-    # print(f"{time.ctime()}: Completed running.")
-    #
-    # executor.shutdown(wait=True)
 
     import aiocrontab
 

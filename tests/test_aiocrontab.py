@@ -118,7 +118,6 @@ def test_shutdown_is_called_on_receiving_error_signals(
     asyncio.set_event_loop(event_loop)
     event_loop._close = event_loop.close
     event_loop.close = mocker.Mock()
-    mocker.patch("aiocrontab.core.logging")
 
     def _shutdown():
         mock_shutdown()

@@ -8,6 +8,7 @@ import pytest
 import aiocrontab.core
 
 from aiocrontab.core import Task
+from aiocrontab.core import create_logger
 
 
 @pytest.mark.parametrize(
@@ -38,6 +39,7 @@ def test_get_next_returns_task_datetime_and_current_datetime(
         func=mocker.Mock(),
         loop=mocker.Mock(),
         executor=mocker.Mock(),
+        logger=mocker.Mock(),
     )
     task.get_now = mocker.Mock(return_value=now)
 
@@ -53,6 +55,7 @@ def test_get_now_returns_timezone_aware_datetime(mocker):
         func=mocker.Mock(),
         loop=mocker.Mock(),
         executor=mocker.Mock(),
+        logger=mocker.Mock(),
     )
     d = task.get_now()
     # how to check if the dt is timezone aware:
@@ -75,12 +78,13 @@ def test_get_now_returns_timezone_aware_datetime(mocker):
 async def test_sleep_until_task_completion(
     now, dt, timestamp, event_loop, mocker, create_mock_coro, create_caplog
 ):
-    caplog = create_caplog(logging.INFO)
+    caplog = create_caplog(logging.DEBUG)
     task = Task(
         pattern="* * * * *",
         func=mocker.Mock(),
         loop=event_loop,
         executor=mocker.Mock(),
+        logger=create_logger(),
     )
     task.get_now = mocker.Mock(return_value=now)
     mock, coro = create_mock_coro("aiocrontab.core.asyncio.sleep")
@@ -114,6 +118,7 @@ async def test_scheduled_time_is_less_than_sleep_time(
         func=mocker.Mock(),
         loop=event_loop,
         executor=mocker.Mock(),
+        logger=mocker.Mock(),
     )
     # mocks
     task.get_now = mocker.Mock(return_value=now)
@@ -165,6 +170,7 @@ def test_schedule_next_loop_timestamp_is_calculated_correctly(
         func=mocker.Mock(),
         loop=mocker.Mock(run_in_executor=mocker.Mock()),
         executor=mocker.Mock(),
+        logger=mocker.Mock(),
     )
 
     # mock
@@ -183,6 +189,7 @@ def test_run(mocker, create_caplog):
         func=mocker.Mock(),
         loop=mocker.Mock(run_in_executor=mocker.Mock()),
         executor=mocker.Mock(),
+        logger=create_logger(),
     )
     caplog = create_caplog(logging.INFO)
     task.run()
@@ -203,6 +210,7 @@ async def test_run_gets_called_from_the_schedule_call(
         func=mocker.Mock(),
         loop=event_loop,
         executor=mocker.Mock(),
+        logger=mocker.Mock(),
     )
     task.run = mocker.Mock()
 
@@ -233,7 +241,11 @@ async def test_handle_cronjob(mocker, create_mock_coro):
 
     with pytest.raises(Exception, match="Something went wrong."):
         await aiocrontab.core.handle_cronjob(
-            "* * * * *", mock_func, loop=mocker.Mock(), executor=mocker.Mock()
+            "* * * * *",
+            mock_func,
+            loop=mocker.Mock(),
+            executor=mocker.Mock(),
+            logger=mocker.Mock(),
         )
 
     assert mock_complete_task_lifecycle.call_count == 2
