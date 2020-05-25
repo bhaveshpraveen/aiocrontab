@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 import signal
+import sys
 import time
 
 from concurrent.futures import thread
@@ -15,9 +16,14 @@ from typing import List
 from typing import NewType
 from typing import Optional
 from typing import Tuple
-from typing import TypedDict
 
 from croniter import croniter
+
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 
 # logger

@@ -5,8 +5,9 @@ description = "Crontab implementation in asyncio "
 authors = ["Bhavesh Praveen <bhavespraveen.dev@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 croniter = "^0.3.31"
+typing_extensions = { version = "latest", python = "~3.7" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
