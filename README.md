@@ -2,6 +2,10 @@
 
 Sample project to "flex" my asyncio skills.
 
+### Installation
+```sh
+pip install aiocrontab
+```
 
 ### Usage
 
