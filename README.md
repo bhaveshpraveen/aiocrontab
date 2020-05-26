@@ -30,3 +30,5 @@ aiocrontab.run()
 - [x] take logger as dependency
 - [ ] Add more meaningful tests
 - [x] fix mypy errors
+- [ ] document the codebase
+- [ ] document usage in readme

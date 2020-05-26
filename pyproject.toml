@@ -3,6 +3,8 @@ name = "aiocrontab"
 version = "0.1.0"
 description = "Crontab implementation in asyncio "
 authors = ["Bhavesh Praveen <bhavespraveen.dev@gmail.com>"]
+license = "MIT"
+readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.7"
