@@ -9,6 +9,7 @@ from concurrent.futures import thread
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from datetime import tzinfo
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -43,6 +44,7 @@ class Task:
         loop: asyncio.AbstractEventLoop,
         executor: thread.ThreadPoolExecutor,
         logger: logging.Logger,
+        tz: tzinfo,
     ) -> None:
         self.pattern = pattern
         self.func = func
@@ -52,7 +54,7 @@ class Task:
         self.buffer_time = 30
         self.logger = logger
         self._running_task: Optional[asyncio.TimerHandle] = None
-        self.tz = timezone.utc
+        self.tz = tz
 
     def get_now(self):
         return datetime.now(self.tz)
@@ -91,51 +93,6 @@ class Task:
         self.loop.run_in_executor(self.executor, self.func)
 
 
-async def handle_cronjob(
-    pattern: str,
-    func: Callable,
-    loop: asyncio.AbstractEventLoop,
-    executor: thread.ThreadPoolExecutor,
-    logger: logging.Logger,
-):
-    while True:
-        task = Task(
-            pattern=pattern,
-            func=func,
-            loop=loop,
-            executor=executor,
-            logger=logger,
-        )
-        await task.complete_task_lifecycle()
-
-
-def create_logger(tz=timezone.utc, debug=True):
-    def timetz(timestamp):
-        # for changing the timezone when logging
-        # https://stackoverflow.com/questions/32402502/how-to-change-the-time-zone-in-python-logging
-        return datetime.now(tz).timetuple()
-
-    # used this for creating a logger
-    # https://stackoverflow.com/questions/43109355/logging-setlevel-is-being-ignored
-    logger = logging.getLogger(__name__)
-
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
-        "%Y-%m-%d %H:%M:%S",
-    )
-    formatter.converter = timetz  # type:ignore
-
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG if debug else logging.INFO)
-    return logger
-
-
-# specifies the default error signals to handle/intercept for graceful shutdown
-_DEFAULT_ERROR_SIGNALS = [signal.SIGINT]
-
-
 class Crontab:
     def __init__(
         self,
@@ -143,6 +100,7 @@ class Crontab:
         executor: Optional[thread.ThreadPoolExecutor] = None,
         error_signals_to_intercept: Optional[List[TSignal]] = None,
         logger: Optional[logging.Logger] = None,
+        tz: Optional[tzinfo] = None,
     ):
         self.registered_tasks: List[TRegisteredTask] = []
         self._loop = loop
@@ -150,7 +108,8 @@ class Crontab:
         self.error_signals_to_intercept = (
             error_signals_to_intercept or _DEFAULT_ERROR_SIGNALS
         )
-        self.logger = logger or create_logger()
+        self.tz = tz or timezone.utc
+        self.logger = logger or create_logger(self.tz)
 
     def initialize_event_loop(self) -> None:
         self.loop.set_exception_handler(self.handle_exception)
@@ -237,6 +196,7 @@ class Crontab:
                             loop=self.loop,
                             executor=self.executor,
                             logger=self.logger,
+                            tz=self.tz,
                         )
                     )
                 )

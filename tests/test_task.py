@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from datetime import datetime
+from datetime import timezone
 
 import pytest
 
@@ -40,6 +41,7 @@ def test_get_next_returns_task_datetime_and_current_datetime(
         loop=mocker.Mock(),
         executor=mocker.Mock(),
         logger=mocker.Mock(),
+        tz=timezone.utc,
     )
     task.get_now = mocker.Mock(return_value=now)
 
@@ -56,6 +58,7 @@ def test_get_now_returns_timezone_aware_datetime(mocker):
         loop=mocker.Mock(),
         executor=mocker.Mock(),
         logger=mocker.Mock(),
+        tz=timezone.utc,
     )
     d = task.get_now()
     # how to check if the dt is timezone aware:
@@ -85,6 +88,7 @@ async def test_sleep_until_task_completion(
         loop=event_loop,
         executor=mocker.Mock(),
         logger=create_logger(),
+        tz=timezone.utc,
     )
     task.get_now = mocker.Mock(return_value=now)
     mock, coro = create_mock_coro("aiocrontab.core.asyncio.sleep")
@@ -119,6 +123,7 @@ async def test_scheduled_time_is_less_than_sleep_time(
         loop=event_loop,
         executor=mocker.Mock(),
         logger=mocker.Mock(),
+        tz=timezone.utc,
     )
     # mocks
     task.get_now = mocker.Mock(return_value=now)
@@ -171,6 +176,7 @@ def test_schedule_next_loop_timestamp_is_calculated_correctly(
         loop=mocker.Mock(run_in_executor=mocker.Mock()),
         executor=mocker.Mock(),
         logger=mocker.Mock(),
+        tz=timezone.utc,
     )
 
     # mock
@@ -190,6 +196,7 @@ def test_run(mocker, create_caplog):
         loop=mocker.Mock(run_in_executor=mocker.Mock()),
         executor=mocker.Mock(),
         logger=create_logger(),
+        tz=timezone.utc,
     )
     caplog = create_caplog(logging.INFO)
     task.run()
@@ -211,6 +218,7 @@ async def test_run_gets_called_from_the_schedule_call(
         loop=event_loop,
         executor=mocker.Mock(),
         logger=mocker.Mock(),
+        tz=timezone.utc,
     )
     task.run = mocker.Mock()
 
@@ -246,6 +254,7 @@ async def test_handle_cronjob(mocker, create_mock_coro):
             loop=mocker.Mock(),
             executor=mocker.Mock(),
             logger=mocker.Mock(),
+            tz=timezone.utc,
         )
 
     assert mock_complete_task_lifecycle.call_count == 2
