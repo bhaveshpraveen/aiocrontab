@@ -35,6 +35,54 @@ class TRegisteredTask(TypedDict):
 
 TSignal = NewType("TSignal", int)
 
+# specifies the default error signals to handle/intercept for graceful shutdown
+_DEFAULT_ERROR_SIGNALS = [signal.SIGINT]
+
+
+def create_logger(
+    tz: Optional[tzinfo] = timezone.utc, debug: Optional[bool] = True
+):
+    def timetz(timestamp):
+        # for changing the timezone when logging
+        # https://stackoverflow.com/questions/32402502/how-to-change-the-time-zone-in-python-logging
+        return datetime.now(tz).timetuple()
+
+    # used this as  a reference for creating a logger
+    # https://stackoverflow.com/questions/43109355/logging-setlevel-is-being-ignored
+    logger = logging.getLogger(__name__)
+
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s Thread-%(thread)d: %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    formatter.converter = timetz  # type:ignore
+
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
+    return logger
+
+
+async def handle_cronjob(
+    pattern: str,
+    func: Callable,
+    loop: asyncio.AbstractEventLoop,
+    executor: thread.ThreadPoolExecutor,
+    logger: logging.Logger,
+    tz: tzinfo,
+):
+    while True:
+        task = Task(
+            pattern=pattern,
+            func=func,
+            loop=loop,
+            executor=executor,
+            logger=logger,
+            tz=tz,
+        )
+        await task.complete_task_lifecycle()
+
 
 class Task:
     def __init__(
