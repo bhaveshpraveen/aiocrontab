@@ -38,7 +38,7 @@ aiocrontab.run()
 - [ ] document usage in readme
 - [ ] different namespaces for different crontab instances
 - [ ] ability to schedule task from code
-
+- [ ] better logging messages
 
 If you didn't create any new `Crontab` instance (ie: You are using `@aiocrontab.register`), you can get the
 logger that the aiocrontab application uses using the following snippet
