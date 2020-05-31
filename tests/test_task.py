@@ -189,8 +189,8 @@ def test_schedule_next_loop_timestamp_is_calculated_correctly(
     task.loop.call_at.assert_called_once_with(expected, task.run)
 
 
-def test_run(mocker, create_caplog):
-    task = Task(
+def test_run_logs_messages(mocker, create_caplog, create_mock_coro):
+    task1 = Task(
         pattern="* * * * *",
         func=mocker.Mock(),
         loop=mocker.Mock(run_in_executor=mocker.Mock()),
@@ -198,11 +198,27 @@ def test_run(mocker, create_caplog):
         logger=create_logger(),
         tz=timezone.utc,
     )
-    caplog = create_caplog(logging.INFO)
-    task.run()
+    caplog = create_caplog(logging.DEBUG)
+    task1.run()
 
     assert len(caplog.records) == 1
-    task.loop.run_in_executor.assert_called_once_with(task.executor, task.func)
+    assert "Scheduling func: unknown in a Thread." == caplog.records[0].msg
+    caplog.clear()
+    assert len(caplog.records) == 0
+
+    mock, coro = create_mock_coro()
+    task2 = Task(
+        pattern="* * * * *",
+        func=coro,
+        loop=mocker.Mock(run_in_executor=mocker.Mock()),
+        executor=mocker.Mock(),
+        logger=create_logger(),
+        tz=timezone.utc,
+    )
+    task2.run()
+
+    assert len(caplog.records) == 1
+    assert "Scheduling func: _coro in the Event Loop." == caplog.records[0].msg
 
 
 @pytest.mark.parametrize(
