@@ -259,3 +259,59 @@ async def test_handle_cronjob(mocker, create_mock_coro):
 
     assert mock_complete_task_lifecycle.call_count == 2
     assert mock_task_class.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_sync_task_is_scheduled_in_thread(mocker, event_loop):
+    # mock
+    task = Task(
+        pattern="* * * * *",
+        func=mocker.Mock(),
+        loop=event_loop,
+        executor=mocker.Mock(),
+        logger=mocker.Mock(),
+        tz=timezone.utc,
+    )
+    task.buffer_time = 0.1
+    task.loop.run_in_executor = mocker.Mock()
+
+    # run code
+    task.schedule(
+        at=datetime(2020, 5, 5, 0, 0, 0, 30),
+        now=datetime(2020, 5, 5, 0, 0, 0, 0),
+    )
+
+    # wait till the tasks gets executed
+    await asyncio.sleep(0.5)
+
+    # assert
+    task.loop.run_in_executor.assert_called_once_with(task.executor, task.func)
+
+
+@pytest.mark.asyncio
+async def test_async_task_is_scheduled_in_event_loop(
+    mocker, event_loop, create_mock_coro
+):
+    mock, coro = create_mock_coro()
+    task = Task(
+        pattern="* * * * *",
+        func=coro,
+        loop=event_loop,
+        executor=mocker.Mock(),
+        logger=mocker.Mock(),
+        tz=timezone.utc,
+    )
+    task.buffer_time = 0.1
+    task.loop.create_task = mocker.Mock(wraps=task.loop.create_task)
+    # run code
+    task.schedule(
+        at=datetime(2020, 5, 5, 0, 0, 0, 30),
+        now=datetime(2020, 5, 5, 0, 0, 0, 0),
+    )
+
+    await asyncio.sleep(0.5)
+
+    assert task.loop.create_task.call_count == 1
+
+    # to check if the coroutine was actually run
+    mock.assert_called_once_with()

@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import inspect
 import logging
 import signal
 import sys
@@ -37,6 +38,10 @@ TSignal = NewType("TSignal", int)
 
 # specifies the default error signals to handle/intercept for graceful shutdown
 _DEFAULT_ERROR_SIGNALS = [signal.SIGINT]
+
+
+def iscoroutinefunction(func):
+    return inspect.iscoroutinefunction(func)
 
 
 def create_logger(
@@ -139,8 +144,15 @@ class Task:
         self.loop.call_at(next_loop_timestamp, self.run)
 
     def run(self) -> None:
-        self.logger.info(f"Scheduling task in Thread")
-        self.loop.run_in_executor(self.executor, self.func)
+        func_name = getattr(self.func, "__name__", "unknown")
+        if iscoroutinefunction(self.func):
+            self.logger.debug(
+                f"Scheduling func: {func_name} in the Event Loop."
+            )
+            self.loop.create_task(self.func())
+        else:
+            self.logger.debug(f"Scheduling func: {func_name} in a Thread.")
+            self.loop.run_in_executor(self.executor, self.func)
 
 
 class Crontab:
@@ -203,7 +215,7 @@ class Crontab:
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # waits until all the background tasks running in different threads to complete.
-        self.logger.info("Waiting for background threads to finish..")
+        self.logger.info("Waiting for tasks in background threads to finish..")
         self.executor.shutdown(wait=True)
         self.loop.stop()
 

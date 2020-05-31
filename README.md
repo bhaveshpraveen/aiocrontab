@@ -29,10 +29,30 @@ aiocrontab.run()
 
 **TODO**
 
-- [ ] support for diff timezones
-- [ ] support for async task
+- [x] support for diff timezones
+- [x] support for async task
 - [x] take logger as dependency
 - [ ] Add more meaningful tests
 - [x] fix mypy errors
 - [ ] document the codebase
 - [ ] document usage in readme
+- [ ] different namespaces for different crontab instances
+- [ ] ability to schedule task from code
+
+
+If you didn't create any new `Crontab` instance (ie: You are using `@aiocrontab.register`), you can get the
+logger that the aiocrontab application uses using the following snippet
+
+```python
+import logging
+
+logger = logging.getLogger("global.aiocrontab.core")
+```
+
+If you created your own Crontab instance(using `Crontab()`), and in-case you didn't provide the logger when creating a `Crontab` instance, you can
+use the following snippet to get the logger that it uses.
+```python
+import logging
+
+logger = logging.getLogger("aiocrontab.core")
+```
