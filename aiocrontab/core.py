@@ -40,7 +40,9 @@ _DEFAULT_ERROR_SIGNALS = [signal.SIGINT]
 
 
 def create_logger(
-    tz: Optional[tzinfo] = timezone.utc, debug: Optional[bool] = True
+    namespace: Optional[str] = __name__,
+    tz: Optional[tzinfo] = timezone.utc,
+    debug: Optional[bool] = True,
 ):
     def timetz(timestamp):
         # for changing the timezone when logging
@@ -49,7 +51,7 @@ def create_logger(
 
     # used this as  a reference for creating a logger
     # https://stackoverflow.com/questions/43109355/logging-setlevel-is-being-ignored
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(namespace)
 
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -157,7 +159,7 @@ class Crontab:
             error_signals_to_intercept or _DEFAULT_ERROR_SIGNALS
         )
         self.tz = tz or timezone.utc
-        self.logger = logger or create_logger(self.tz)
+        self.logger = logger or create_logger(tz=self.tz)
 
     def initialize_event_loop(self) -> None:
         self.loop.set_exception_handler(self.handle_exception)
