@@ -122,7 +122,9 @@ class Task:
 
     async def sleep_until_task_completion(self, till: datetime) -> None:
         sleep_till_dt: datetime = till + timedelta(seconds=self.buffer_time)
-        sleep_till_timestamp: float = sleep_till_dt.timestamp() - self.get_now().timestamp()
+        sleep_till_timestamp: float = (
+            sleep_till_dt.timestamp() - self.get_now().timestamp()
+        )
         self.logger.debug(f"Non-Block Sleeping for {sleep_till_timestamp}")
         await asyncio.sleep(sleep_till_timestamp)
         self.logger.debug(
@@ -134,17 +136,29 @@ class Task:
         self.schedule(at=next_task_datetime, now=now)
         await self.sleep_until_task_completion(till=next_task_datetime)
 
+    def get_func_name(self):
+        if isinstance(self.func, functools.partial):
+            return self.func.func.__name__
+
+        default_name = "unknown_func"
+        try:
+            return getattr(self.func, "__name__", default_name)
+        except Exception:
+            return default_name
+
     def schedule(self, at: datetime, now: datetime) -> None:
         next_timestamp: float = at.timestamp()
         now_timestamp: float = now.timestamp()
-        next_loop_timestamp: float = self.loop.time() + next_timestamp - now_timestamp
+        next_loop_timestamp: float = (
+            self.loop.time() + next_timestamp - now_timestamp
+        )
         self.logger.info(
-            f"Task scheduled to be called at {next_loop_timestamp}"
+            f"Task {self.get_func_name()} scheduled to be called at {next_loop_timestamp} ({datetime.fromtimestamp(next_timestamp)})"
         )
         self.loop.call_at(next_loop_timestamp, self.run)
 
     def run(self) -> None:
-        func_name = getattr(self.func, "__name__", "unknown")
+        func_name = self.get_func_name()
         if iscoroutinefunction(self.func):
             self.logger.debug(
                 f"Scheduling func: {func_name} in the Event Loop."

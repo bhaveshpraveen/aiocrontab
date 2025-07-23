@@ -79,8 +79,9 @@ def test_get_now_returns_timezone_aware_datetime(mocker):
 )
 @pytest.mark.asyncio
 async def test_sleep_until_task_completion(
-    now, dt, timestamp, event_loop, mocker, create_mock_coro, create_caplog
+    now, dt, timestamp, mocker, create_mock_coro, create_caplog
 ):
+    event_loop = asyncio.get_running_loop()
     caplog = create_caplog(logging.DEBUG)
     task = Task(
         pattern="* * * * *",
@@ -115,8 +116,9 @@ async def test_sleep_until_task_completion(
 )
 @pytest.mark.asyncio
 async def test_scheduled_time_is_less_than_sleep_time(
-    pattern, now, dt, mocker, event_loop, create_mock_coro
+    pattern, now, dt, mocker, create_mock_coro
 ):
+    event_loop = asyncio.get_running_loop()
     task = Task(
         pattern=pattern,
         func=mocker.Mock(),
@@ -202,7 +204,9 @@ def test_run_logs_messages(mocker, create_caplog, create_mock_coro):
     task1.run()
 
     assert len(caplog.records) == 1
-    assert "Scheduling func: unknown in a Thread." == caplog.records[0].msg
+    assert (
+        "Scheduling func: unknown_func in a Thread." == caplog.records[0].msg
+    )
     caplog.clear()
     assert len(caplog.records) == 0
 
@@ -225,9 +229,8 @@ def test_run_logs_messages(mocker, create_caplog, create_mock_coro):
     "at,now", [(datetime(2020, 5, 5, 0, 0, 1), datetime(2020, 5, 5, 0, 0, 0))]
 )
 @pytest.mark.asyncio
-async def test_run_gets_called_from_the_schedule_call(
-    at, now, mocker, event_loop
-):
+async def test_run_gets_called_from_the_schedule_call(at, now, mocker):
+    event_loop = asyncio.get_running_loop()
     task = Task(
         pattern="dummy",
         func=mocker.Mock(),
@@ -278,7 +281,8 @@ async def test_handle_cronjob(mocker, create_mock_coro):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_is_scheduled_in_thread(mocker, event_loop):
+async def test_sync_task_is_scheduled_in_thread(mocker):
+    event_loop = asyncio.get_running_loop()
     # mock
     task = Task(
         pattern="* * * * *",
@@ -305,9 +309,8 @@ async def test_sync_task_is_scheduled_in_thread(mocker, event_loop):
 
 
 @pytest.mark.asyncio
-async def test_async_task_is_scheduled_in_event_loop(
-    mocker, event_loop, create_mock_coro
-):
+async def test_async_task_is_scheduled_in_event_loop(mocker, create_mock_coro):
+    event_loop = asyncio.get_running_loop()
     mock, coro = create_mock_coro()
     task = Task(
         pattern="* * * * *",

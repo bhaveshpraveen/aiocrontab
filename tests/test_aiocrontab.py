@@ -109,7 +109,7 @@ def test_exceptions_are_logged(mock_crontab_with_tasks, create_caplog):
 
 @pytest.mark.parametrize("tested_signal", ["SIGINT", "SIGUSR1"])
 def test_shutdown_is_called_on_receiving_error_signals(
-    tested_signal, mocker, mock_crontab_with_tasks, event_loop
+    tested_signal, mocker, mock_crontab_with_tasks
 ):
     tested_signal = getattr(signal, tested_signal)
     mock_crontab, f1 = mock_crontab_with_tasks(mock_handle_cronjob=False)
